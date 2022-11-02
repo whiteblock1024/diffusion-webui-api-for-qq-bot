@@ -3,18 +3,43 @@ import requests
 import os
 import base64
 import urllib.request
+import cv2
+import numpy as np
+import time
 
+from sympy import N
 
 # sd_webui url
 sd_webui_port = 7860
 sd_webui_url = f"http://127.0.0.1:{sd_webui_port}/api/predict/"
 
 # path
-self_path = os.path.dirname(os.path.realpath(__file__)).replace("\\","/")
+self_path = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/")
 t2i_release_path = f'{self_path}/release/ai_draw_acg_t2i.png'
 i2i_release_path = f'{self_path}/release/ai_draw_acg_i2i.png'
 i2i_source_path = f'{self_path}/source/source_i2i.png'
+i2i_mask_path = f'{self_path}/source/mask_i2i.png'
 
+# mask process
+def mask_process():
+
+    mask = cv2.imread(i2i_mask_path)
+
+    black_pixels = np.where(
+        (mask[:, :, 0] == 0) &
+        (mask[:, :, 1] == 0) &
+        (mask[:, :, 2] == 0)
+    )
+
+    other_pixels = np.where(
+        (mask[:, :, 0] != 0) |
+        (mask[:, :, 1] != 0) |
+        (mask[:, :, 2] != 0)
+    )
+
+    mask[black_pixels] = [255, 255, 255]
+    mask[other_pixels] = [0, 0, 0]
+    cv2.imwrite(i2i_mask_path, mask)
 
 # text to image
 def ai_draw_t2i(input_str: str = 'girl,masterpiece'):
@@ -83,8 +108,8 @@ def ai_draw_t2i(input_str: str = 'girl,masterpiece'):
             0,
             0,
             False,
-            width,
             height,
+            width,
             False,
             False,
             0.7,
@@ -107,8 +132,9 @@ def ai_draw_t2i(input_str: str = 'girl,masterpiece'):
         'Content-Type': 'application/json'
     }
 
-    response = requests.request("POST", sd_webui_url, headers=headers, data=data)
-    
+    response = requests.request(
+        "POST", sd_webui_url, headers=headers, data=data)
+
     # base64 decode
     img_base64 = json.loads(response.text)["data"][0][0][22:]
     img_data = base64.b64decode(img_base64)
@@ -119,7 +145,7 @@ def ai_draw_t2i(input_str: str = 'girl,masterpiece'):
 
 
 # image to image
-def ai_draw_i2i(input_str:str='girl,masterpiece', download_url:str='None'):
+def ai_draw_i2i(input_str: str = 'girl,masterpiece', source_url: str = 'None', mask_url: str = 'None'):
 
     # default args
     steps = 30
@@ -128,6 +154,8 @@ def ai_draw_i2i(input_str:str='girl,masterpiece', download_url:str='None'):
     width = 512
     height = 512
     str_p = 256
+    redraw = 0
+    mask =  None
 
     # args process
     args_list = input_str.split()
@@ -158,29 +186,53 @@ def ai_draw_i2i(input_str:str='girl,masterpiece', download_url:str='None'):
         height = int(args_list[p+1])
         if p < str_p:
             str_p = p
+    if '--redraw' in args_list:
+        p = args_list.index('--redraw')
+        redraw = 1
+        if p < str_p:
+            str_p = p
 
     if (str_p < 256):
         input_str = ""
         for i in range(0, str_p):
             input_str += " " + "".join(args_list[i])
 
+    # download source image
+    urllib.request.urlretrieve(source_url, filename=i2i_source_path)
+
     # base64 encode
-    urllib.request.urlretrieve(download_url,filename=i2i_source_path)
     with open(i2i_source_path, 'rb') as f:
         source_img_data = f.read()
-    source_img_base64 = "data:image/png;base64," + str(base64.b64encode(source_img_data), "utf-8")
+    source_img_base64 = "data:image/png;base64," + \
+        str(base64.b64encode(source_img_data), "utf-8")
+
+    # mask process
+    if redraw:
+        urllib.request.urlretrieve(mask_url, filename=i2i_mask_path)
+
+        mask_process()
+
+        with open(i2i_mask_path, 'rb') as f:
+            mask_img_data = f.read()
+        mask_img_base64 = "data:image/png;base64," + \
+            str(base64.b64encode(mask_img_data), "utf-8")
+
+        mask = {
+            "image": source_img_base64,
+            "mask": mask_img_base64
+        }
 
     # http request
     data = json.dumps({
         "fn_index": 31,
         "data": [
-            0,
+            redraw,
             input_str,
             "",
             "None",
             "None",
             source_img_base64,
-            None,
+            mask,
             None,
             None,
             "Draw mask",
@@ -200,8 +252,8 @@ def ai_draw_i2i(input_str:str='girl,masterpiece', download_url:str='None'):
             0,
             0,
             False,
-            width,
             height,
+            width,
             "Just resize",
             False,
             32,
@@ -260,7 +312,8 @@ def ai_draw_i2i(input_str:str='girl,masterpiece', download_url:str='None'):
         'Content-Type': 'application/json'
     }
 
-    response = requests.request("POST", sd_webui_url, headers=headers, data=data)
+    response = requests.request(
+        "POST", sd_webui_url, headers=headers, data=data)
 
     # base64 decode
     img_base64 = json.loads(response.text)["data"][0][0][22:]
