@@ -145,7 +145,7 @@ def ai_draw_t2i(input_str: str = 'girl,masterpiece'):
 
 
 # image to image
-def ai_draw_i2i(input_str: str = 'girl,masterpiece', source_url: str = 'None', mask_url: str = 'None'):
+def ai_draw_i2i(input_str: str = 'girl,masterpiece', source_url: str = 'None', mask_url: str = 'None', redraw: str = 0):
 
     # default args
     steps = 30
@@ -154,7 +154,6 @@ def ai_draw_i2i(input_str: str = 'girl,masterpiece', source_url: str = 'None', m
     width = 512
     height = 512
     str_p = 256
-    redraw = 0
     mask =  None
 
     # args process
@@ -184,11 +183,6 @@ def ai_draw_i2i(input_str: str = 'girl,masterpiece', source_url: str = 'None', m
     if '--height' in args_list:
         p = args_list.index('--height')
         height = int(args_list[p+1])
-        if p < str_p:
-            str_p = p
-    if '--redraw' in args_list:
-        p = args_list.index('--redraw')
-        redraw = 1
         if p < str_p:
             str_p = p
 
