@@ -5,9 +5,7 @@ import base64
 import urllib.request
 import cv2
 import numpy as np
-import time
 
-from sympy import N
 
 # sd_webui url
 sd_webui_port = 7860
